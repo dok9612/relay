@@ -13,4 +13,5 @@ def hello():
 
 @app.post("/v1/catalog-previews", response_model=CatalogPreviewResponse)
 def catalog_preview(data: CatalogPreviewRequest) -> CatalogPreviewResponse:
-    return normalize_catalog(data)
+    normalized_catalog = normalize_catalog(data)
+    return normalized_catalog

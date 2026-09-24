@@ -1,23 +1,15 @@
-from relay.schemas import CatalogRecord, CatalogPreviewRequest, CatalogPreviewResponse
+"""Catalog normalization rules.
+
+Pure functions: str in, str out. This module imports nothing from relay,
+so every other module can depend on it without creating an import cycle.
+"""
 
 
 def normalize_sku(sku: str) -> str:
+    """Trim outer whitespace and uppercase."""
     return sku.strip().upper()
 
 
 def normalize_name(name: str) -> str:
+    """Collapse every run of whitespace to a single space and trim the ends."""
     return " ".join(name.split())
-
-
-def normalize_record(record: CatalogRecord) -> CatalogRecord:
-    return CatalogRecord(
-        sku=normalize_sku(record.sku), name=normalize_name(record.name)
-    )
-
-
-def normalize_catalog(request: CatalogPreviewRequest) -> CatalogPreviewResponse:
-    normalized_records = [normalize_record(record) for record in request.records]
-    return CatalogPreviewResponse(
-        records=normalized_records,
-        count=len(normalized_records),
-    )

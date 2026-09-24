@@ -1,17 +1,12 @@
 from fastapi import FastAPI
 
+from relay.preview import build_catalog_preview
 from relay.schemas import CatalogPreviewRequest, CatalogPreviewResponse
-from relay.normalization import normalize_catalog
 
-app = FastAPI()
-
-
-@app.get("/hello")
-def hello():
-    return {"message": "hello"}
+app = FastAPI(title="Relay")
 
 
-@app.post("/v1/catalog-previews", response_model=CatalogPreviewResponse)
-def catalog_preview(data: CatalogPreviewRequest) -> CatalogPreviewResponse:
-    normalized_catalog = normalize_catalog(data)
-    return normalized_catalog
+@app.post("/v1/catalog-previews")
+def create_catalog_preview(request: CatalogPreviewRequest) -> CatalogPreviewResponse:
+    # 200, not 201: a preview creates no stored resource.
+    return build_catalog_preview(request)

@@ -121,3 +121,44 @@ def test_catalog_preview_checks_length_after_normalization():
     payload = {"records": [{"sku": "ß" * 33, "name": "Brake pad"}]}
     result = client.post("/v1/catalog-previews", json=payload)
     assert result.status_code == 422
+
+
+URL = "/v1/catalog-previews"
+
+
+def test_wrong_method_returns_405_with_allow_header():
+    response = client.get(URL)
+    assert response.status_code == 405
+    assert response.headers["allow"] == "POST"
+
+
+def test_unknown_route_returns_404():
+    response = client.post("/v1/nope", json={})
+    assert response.status_code == 404
+
+
+def test_nonjson_content_is_rejected():
+    response = client.post(
+        URL,
+        content='{"records":[{"sku":"a","name":"b"}]}',
+        headers={"Content-Type": "text/plain"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "model_attributes_type"
+
+
+def test_malformed_json_is_rejected():
+    # Policy: FastAPI default kept (HTTP's closer fit would be 400).
+    response = client.post(
+        URL,
+        content='{"records":[',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "json_invalid"
+
+
+def test_missing_body_is_rejected():
+    response = client.post(URL)
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "missing"

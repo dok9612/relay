@@ -186,3 +186,23 @@ def test_missing_body_is_rejected():
     response = client.post(URL)
     assert response.status_code == 422
     assert response.json()["detail"][0]["type"] == "missing"
+
+
+@pytest.mark.parametrize(
+    ("sku", "name", "expected_status"),
+    [
+        pytest.param("a" * 64, "Brake pad", 200, id="sku at limit 64"),
+        pytest.param("a" * 65, "Brake pad", 422, id="sku one past 65"),
+        pytest.param(
+            "  " + "a" * 64 + "  ", "Brake pad", 200, id="sku 68 raw, 64 after trim"
+        ),
+        pytest.param("ab-12", "n" * 200, 200, id="name at limit 200"),
+        pytest.param("ab-12", "n" * 201, 422, id="name one past 201"),
+        pytest.param(
+            "ab-12", "a" + " " * 300 + "b", 200, id="name 302 raw, 3 after collapse"
+        ),
+    ],
+)
+def test_length_limits_apply_after_normalization(sku, name, expected_status):
+    response = client.post(URL, json={"records": [{"sku": sku, "name": name}]})
+    assert response.status_code == expected_status

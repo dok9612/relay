@@ -114,3 +114,10 @@ def test_catalog_preview_rejects_101_records():
     }
     result = client.post("/v1/catalog-previews", json=payload)
     assert result.status_code == 422
+
+
+def test_catalog_preview_checks_length_after_normalization():
+    # "ß" is 1 character but uppercases to "SS": 33 raw chars become 66 > 64.
+    payload = {"records": [{"sku": "ß" * 33, "name": "Brake pad"}]}
+    result = client.post("/v1/catalog-previews", json=payload)
+    assert result.status_code == 422

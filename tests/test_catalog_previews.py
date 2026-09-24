@@ -5,6 +5,7 @@ from relay.main import app
 
 
 client = TestClient(app)
+URL = "/v1/catalog-previews"
 
 
 def test_catalog_preview_success():
@@ -40,63 +41,89 @@ def test_catalog_preview_success():
     }
 
 
+REC = ["body", "records", 0]  # location prefix for fields inside the first record
+
+
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "loc", "error_type"),
     [
-        # missing required field
-        {
-            "records": [
-                {
-                    "sku": "ab-12",
-                }
-            ]
-        },
-        # unknown field
-        {
-            "records": [
-                {
-                    "sku": "ab-12",
-                    "name": "Brake pad",
-                    "banana": 123,
-                }
-            ]
-        },
-        # wrong type
-        {
-            "records": [
-                {
-                    "sku": 123,
-                    "name": "Brake pad",
-                }
-            ]
-        },
-        # empty list
-        {
-            "records": [],
-        },
-        # sku blank after normalization
-        {
-            "records": [
-                {
-                    "sku": "     ",
-                    "name": "Brake pad",
-                }
-            ]
-        },
-        # name blank after normalization
-        {
-            "records": [
-                {
-                    "sku": "ab-12",
-                    "name": "      ",
-                }
-            ]
-        },
+        # --- the four ways a field can be wrong ---
+        pytest.param(
+            {"records": [{"name": "Brake pad"}]},
+            REC + ["sku"],
+            "missing",
+            id="sku omitted",
+        ),
+        pytest.param(
+            {"records": [{"sku": None, "name": "Brake pad"}]},
+            REC + ["sku"],
+            "string_type",
+            id="sku null",
+        ),
+        pytest.param(
+            {"records": [{"sku": "", "name": "Brake pad"}]},
+            REC + ["sku"],
+            "value_error",
+            id="sku empty",
+        ),
+        pytest.param(
+            {"records": [{"sku": 123, "name": "Brake pad"}]},
+            REC + ["sku"],
+            "string_type",
+            id="sku number",
+        ),
+        # --- blank after normalization (your rule, so a value_error) ---
+        pytest.param(
+            {"records": [{"sku": "   ", "name": "Brake pad"}]},
+            REC + ["sku"],
+            "value_error",
+            id="sku blank",
+        ),
+        pytest.param(
+            {"records": [{"sku": "ab-12", "name": "   "}]},
+            REC + ["name"],
+            "value_error",
+            id="name blank",
+        ),
+        pytest.param(
+            {"records": [{"sku": "ab-12", "name": 5}]},
+            REC + ["name"],
+            "string_type",
+            id="name number",
+        ),
+        # --- unknown fields, at both levels ---
+        pytest.param(
+            {"records": [{"sku": "ab-12", "name": "Brake pad", "banana": 1}]},
+            REC + ["banana"],
+            "extra_forbidden",
+            id="unknown record field",
+        ),
+        pytest.param(
+            {"records": [{"sku": "ab-12", "name": "Brake pad"}], "extra": 1},
+            ["body", "extra"],
+            "extra_forbidden",
+            id="unknown top-level field",
+        ),
+        # --- the records list itself ---
+        pytest.param({}, ["body", "records"], "missing", id="records omitted"),
+        pytest.param(
+            {"records": None}, ["body", "records"], "list_type", id="records null"
+        ),
+        pytest.param(
+            {"records": {}}, ["body", "records"], "list_type", id="records object"
+        ),
+        pytest.param(
+            {"records": []}, ["body", "records"], "too_short", id="records empty"
+        ),
     ],
 )
-def test_catalog_preview_reject_invalid_request(payload):
-    result = client.post("/v1/catalog-previews", json=payload)
-    assert result.status_code == 422
+def test_rejects_invalid_input_with_specific_error(payload, loc, error_type):
+    response = client.post(URL, json=payload)
+
+    assert response.status_code == 422
+    error = response.json()["detail"][0]
+    assert error["loc"] == loc  # WHERE it failed
+    assert error["type"] == error_type  # WHY it failed
 
 
 def test_catalog_preview_accepts_100_records():
@@ -121,9 +148,6 @@ def test_catalog_preview_checks_length_after_normalization():
     payload = {"records": [{"sku": "ß" * 33, "name": "Brake pad"}]}
     result = client.post("/v1/catalog-previews", json=payload)
     assert result.status_code == 422
-
-
-URL = "/v1/catalog-previews"
 
 
 def test_wrong_method_returns_405_with_allow_header():

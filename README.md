@@ -44,7 +44,21 @@ Response (`200 OK`):
 - Name: collapse whitespace runs to one space, trim. 1–200 characters after normalization.
 - 1–100 records per request. Each record has exactly `sku` and `name`, both strings.
 - Order and duplicates are preserved. Nothing is stored.
-- Invalid input returns `422`.
+
+## Error behavior
+
+| Situation | Status | Why |
+|---|---|---|
+| Wrong method (e.g. GET) | 405 + `Allow: POST` | HTTP rule |
+| Unknown path | 404 | HTTP rule |
+| Body not labeled `application/json` | 422 | FastAPI default, kept (HTTP's closer fit is 415) |
+| Malformed JSON | 422 | FastAPI default, kept (HTTP's closer fit is 400) |
+| Missing field or body, `null`, wrong type, unknown field | 422 | Our policy: strict schema |
+| Empty, blank, or too long after normalization | 422 | Our policy: normalization rules |
+
+422 errors look like `{"detail": [{"loc": [...], "type": "...", "msg": "..."}]}`,
+where `loc` says where the problem is and `type` says why.
+404 and 405 return `{"detail": "..."}`. A single error format is planned (R18).
 
 ## Project layout
 

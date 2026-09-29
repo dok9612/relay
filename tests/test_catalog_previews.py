@@ -206,3 +206,22 @@ def test_missing_body_is_rejected():
 def test_length_limits_apply_after_normalization(sku, name, expected_status):
     response = client.post(URL, json={"records": [{"sku": sku, "name": name}]})
     assert response.status_code == expected_status
+
+def test_preview_preserves_order_duplicates_and_count():
+    # Deliberately NOT alphabetical: a sorting bug must change the output.
+    records = [
+        {"sku": "b-2", "name": "Second"},
+        {"sku": "a-1", "name": "First"},
+        {"sku": "b-2", "name": "Second"},
+    ]
+    response = client.post(URL, json={"records": records})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "records": [
+            {"sku": "B-2", "name": "Second"},
+            {"sku": "A-1", "name": "First"},
+            {"sku": "B-2", "name": "Second"},
+        ],
+        "count": 3,
+    }

@@ -1,16 +1,11 @@
 import pytest
-from fastapi.testclient import TestClient
 
-from relay.main import app
-
-
-client = TestClient(app)
 URL = "/v1/catalog-previews"
 
 
-def test_catalog_preview_success():
+def test_catalog_preview_success(client):
     response = client.post(
-        "/v1/catalog-previews",
+        URL,
         json={
             "records": [
                 {
@@ -117,7 +112,7 @@ REC = ["body", "records", 0]  # location prefix for fields inside the first reco
         ),
     ],
 )
-def test_rejects_invalid_input_with_specific_error(payload, loc, error_type):
+def test_rejects_invalid_input_with_specific_error(client,payload, loc, error_type):
     response = client.post(URL, json=payload)
 
     assert response.status_code == 422
@@ -126,42 +121,65 @@ def test_rejects_invalid_input_with_specific_error(payload, loc, error_type):
     assert error["type"] == error_type  # WHY it failed
 
 
-def test_catalog_preview_accepts_100_records():
+def test_catalog_preview_accepts_100_records(client):
     payload = {
         "records": [{"sku": f"sku-{i}", "name": f"Product {i}"} for i in range(100)]
     }
-    result = client.post("/v1/catalog-previews", json=payload)
+    result = client.post(URL, json=payload)
 
     assert result.status_code == 200
 
 
-def test_catalog_preview_rejects_101_records():
+def test_catalog_preview_rejects_101_records(client):
     payload = {
         "records": [{"sku": f"sku-{i}", "name": f"Product {i}"} for i in range(101)]
     }
-    result = client.post("/v1/catalog-previews", json=payload)
+    result = client.post(URL, json=payload)
     assert result.status_code == 422
 
 
-def test_catalog_preview_checks_length_after_normalization():
-    # "ß" is 1 character but uppercases to "SS": 33 raw chars become 66 > 64.
-    payload = {"records": [{"sku": "ß" * 33, "name": "Brake pad"}]}
-    result = client.post("/v1/catalog-previews", json=payload)
-    assert result.status_code == 422
+@pytest.mark.parametrize(
+    "sku",
+    [
+        pytest.param("ß" * 33, id="german sharp s (uppercases to SS)"),
+        pytest.param("ﬀ-12", id="ff ligature (uppercases to FF)"),
+        pytest.param("АB-12", id="cyrillic A look-alike"),
+        pytest.param("ıd-12", id="dotless i (uppercases to ASCII I)"),
+        pytest.param("AB 12", id="inner space"),
+        pytest.param("AB\x1f12", id="invisible control char"),
+        pytest.param("AB#12", id="symbol outside the set"),
+    ],
+)
+def test_sku_outside_allowed_characters_is_rejected(client, sku):
+    response = client.post(URL, json={"records": [{"sku": sku, "name": "Brake pad"}]})
+
+    assert response.status_code == 422
+    error = response.json()["detail"][0]
+    assert error["loc"] == REC + ["sku"]
+    assert error["type"] == "value_error"
 
 
-def test_wrong_method_returns_405_with_allow_header():
+def test_sku_allowed_characters_are_accepted_and_uppercased(client):
+    response = client.post(
+        URL, json={"records": [{"sku": " ab_12.v-2 ", "name": "Brake pad"}]}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["records"][0]["sku"] == "AB_12.V-2"
+
+
+def test_wrong_method_returns_405_with_allow_header(client):
     response = client.get(URL)
     assert response.status_code == 405
     assert response.headers["allow"] == "POST"
 
 
-def test_unknown_route_returns_404():
+def test_unknown_route_returns_404(client):
     response = client.post("/v1/nope", json={})
     assert response.status_code == 404
 
 
-def test_nonjson_content_is_rejected():
+def test_nonjson_content_is_rejected(client):
     response = client.post(
         URL,
         content='{"records":[{"sku":"a","name":"b"}]}',
@@ -171,7 +189,7 @@ def test_nonjson_content_is_rejected():
     assert response.json()["detail"][0]["type"] == "model_attributes_type"
 
 
-def test_malformed_json_is_rejected():
+def test_malformed_json_is_rejected(client):
     # Policy: FastAPI default kept (HTTP's closer fit would be 400).
     response = client.post(
         URL,
@@ -182,7 +200,7 @@ def test_malformed_json_is_rejected():
     assert response.json()["detail"][0]["type"] == "json_invalid"
 
 
-def test_missing_body_is_rejected():
+def test_missing_body_is_rejected(client):
     response = client.post(URL)
     assert response.status_code == 422
     assert response.json()["detail"][0]["type"] == "missing"
@@ -203,6 +221,25 @@ def test_missing_body_is_rejected():
         ),
     ],
 )
-def test_length_limits_apply_after_normalization(sku, name, expected_status):
+def test_length_limits_apply_after_normalization(client, sku, name, expected_status):
     response = client.post(URL, json={"records": [{"sku": sku, "name": name}]})
     assert response.status_code == expected_status
+
+def test_preview_preserves_order_duplicates_and_count(client):
+    # Deliberately NOT alphabetical: a sorting bug must change the output.
+    records = [
+        {"sku": "b-2", "name": "Second"},
+        {"sku": "a-1", "name": "First"},
+        {"sku": "b-2", "name": "Second"},
+    ]
+    response = client.post(URL, json={"records": records})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "records": [
+            {"sku": "B-2", "name": "Second"},
+            {"sku": "A-1", "name": "First"},
+            {"sku": "B-2", "name": "Second"},
+        ],
+        "count": 3,
+    }

@@ -6,7 +6,7 @@ from relay.normalization import normalize_name, normalize_sku
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        (" ab-12 ", "AB-13"),
+        (" ab-12 ", "AB-12"),
         ("\tab-12\n", "AB-12"),
         ("XY-9", "XY-9"),
         ("   ", ""),

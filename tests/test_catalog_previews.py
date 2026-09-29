@@ -1,15 +1,11 @@
 import pytest
-from fastapi.testclient import TestClient
 
-from relay.main import app
-
-        
 URL = "/v1/catalog-previews"
 
 
 def test_catalog_preview_success(client):
     response = client.post(
-        "/v1/catalog-previews",
+        URL,
         json={
             "records": [
                 {
@@ -129,7 +125,7 @@ def test_catalog_preview_accepts_100_records(client):
     payload = {
         "records": [{"sku": f"sku-{i}", "name": f"Product {i}"} for i in range(100)]
     }
-    result = client.post("/v1/catalog-previews", json=payload)
+    result = client.post(URL, json=payload)
 
     assert result.status_code == 200
 
@@ -138,15 +134,38 @@ def test_catalog_preview_rejects_101_records(client):
     payload = {
         "records": [{"sku": f"sku-{i}", "name": f"Product {i}"} for i in range(101)]
     }
-    result = client.post("/v1/catalog-previews", json=payload)
+    result = client.post(URL, json=payload)
     assert result.status_code == 422
 
 
-def test_catalog_preview_checks_length_after_normalization(client):
-    # "ß" is 1 character but uppercases to "SS": 33 raw chars become 66 > 64.
-    payload = {"records": [{"sku": "ß" * 33, "name": "Brake pad"}]}
-    result = client.post("/v1/catalog-previews", json=payload)
-    assert result.status_code == 422
+@pytest.mark.parametrize(
+    "sku",
+    [
+        pytest.param("ß" * 33, id="german sharp s (uppercases to SS)"),
+        pytest.param("ﬀ-12", id="ff ligature (uppercases to FF)"),
+        pytest.param("АB-12", id="cyrillic A look-alike"),
+        pytest.param("ıd-12", id="dotless i (uppercases to ASCII I)"),
+        pytest.param("AB 12", id="inner space"),
+        pytest.param("AB\x1f12", id="invisible control char"),
+        pytest.param("AB#12", id="symbol outside the set"),
+    ],
+)
+def test_sku_outside_allowed_characters_is_rejected(client, sku):
+    response = client.post(URL, json={"records": [{"sku": sku, "name": "Brake pad"}]})
+
+    assert response.status_code == 422
+    error = response.json()["detail"][0]
+    assert error["loc"] == REC + ["sku"]
+    assert error["type"] == "value_error"
+
+
+def test_sku_allowed_characters_are_accepted_and_uppercased(client):
+    response = client.post(
+        URL, json={"records": [{"sku": " ab_12.v-2 ", "name": "Brake pad"}]}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["records"][0]["sku"] == "AB_12.V-2"
 
 
 def test_wrong_method_returns_405_with_allow_header(client):

@@ -1,8 +1,14 @@
 """HTTP request/response contracts for the catalog preview."""
 
+import string
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from relay.normalization import normalize_name, normalize_sku
+
+# SKU policy: identifiers are compared exactly by people and machines, so they
+# use a small, unambiguous alphabet. Names stay full Unicode (display text).
+SKU_CHARS = frozenset(string.ascii_uppercase + string.digits + "-_.")
 
 
 class CatalogRecord(BaseModel):
@@ -19,8 +25,14 @@ class CatalogRecord(BaseModel):
     @field_validator("sku")
     @classmethod
     def validate_sku(cls, value: str) -> str:
-        if not 1 <= len(normalize_sku(value)) <= 64:
+        sku = normalize_sku(value)
+        if not 1 <= len(sku) <= 64:
             raise ValueError("sku must be 1-64 characters after normalization")
+        # isascii() on the RAW value: some non-ASCII letters uppercase into
+        # ASCII look-alikes ("ı" -> "I", "ſ" -> "S"), so checking only the
+        # normalized SKU would let them through.
+        if not value.isascii() or not set(sku) <= SKU_CHARS:
+            raise ValueError("sku may only contain A-Z, a-z, 0-9, '-', '_' and '.'")
         return value
 
     @field_validator("name")

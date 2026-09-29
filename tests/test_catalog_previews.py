@@ -112,7 +112,7 @@ REC = ["body", "records", 0]  # location prefix for fields inside the first reco
         ),
     ],
 )
-def test_rejects_invalid_input_with_specific_error(client,payload, loc, error_type):
+def test_rejects_invalid_input_with_specific_error(client, payload, loc, error_type):
     response = client.post(URL, json=payload)
 
     assert response.status_code == 422
@@ -224,6 +224,7 @@ def test_missing_body_is_rejected(client):
 def test_length_limits_apply_after_normalization(client, sku, name, expected_status):
     response = client.post(URL, json={"records": [{"sku": sku, "name": name}]})
     assert response.status_code == expected_status
+
 
 def test_preview_preserves_order_duplicates_and_count(client):
     # Deliberately NOT alphabetical: a sorting bug must change the output.

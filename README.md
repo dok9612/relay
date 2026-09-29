@@ -1,5 +1,7 @@
 # Relay
 
+[![CI](https://github.com/dok9612/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/dok9612/relay/actions/workflows/ci.yml)
+
 A batch-processing API for normalizing product-catalog records.
 
 ## Setup
@@ -23,6 +25,19 @@ Interactive docs: http://127.0.0.1:8000/docs
 ```bash
 uv run pytest -q
 ```
+
+## Checks
+
+The same checks run in CI on every push and pull request:
+
+```bash
+uv run ruff format --check
+uv run ruff check
+uv run mypy
+uv run pytest -q
+```
+
+To run them automatically before each commit: `uv run pre-commit install`.
 
 ## Example
 

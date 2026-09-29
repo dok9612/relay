@@ -15,6 +15,7 @@ from relay.normalization import normalize_name, normalize_sku
 def test_normalize_sku(raw, expected):
     assert normalize_sku(raw) == expected
 
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [

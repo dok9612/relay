@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from relay.main import app
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def client():
     with TestClient(app) as c:
         yield c

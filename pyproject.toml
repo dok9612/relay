@@ -11,9 +11,29 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "hypothesis>=6.168.3",
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
     "pytest>=9.1.1",
+    "ruff>=0.16.9",
 ]
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13"]
 build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# E/F: errors and likely bugs · I: import order · B: bug-prone patterns · UP: modern syntax
+select = ["E", "F", "I", "B", "UP"]
+# The formatter owns line length; long string literals are allowed.
+ignore = ["E501"]
+
+[tool.mypy]
+files = ["src"]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -12,9 +12,9 @@ SKU_ALPHABET = string.ascii_letters + string.digits + "-_."
 valid_sku_body = st.text(alphabet=SKU_ALPHABET, min_size=1, max_size=64)
 padding = st.text(alphabet=" \t\n\r", max_size=3)
 # at least one non-ASCII character somewhere in the string
-non_ascii_text = st.tuples(
-    st.text(), st.characters(min_codepoint=128), st.text()
-).map("".join)
+non_ascii_text = st.tuples(st.text(), st.characters(min_codepoint=128), st.text()).map(
+    "".join
+)
 
 
 # ---- normalize_name -------------------------------------------------------
